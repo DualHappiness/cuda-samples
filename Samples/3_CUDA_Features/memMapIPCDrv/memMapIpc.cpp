@@ -53,7 +53,7 @@ using namespace std;
 #define MAX_DEVICES (32)
 
 #define PROCESSES_PER_DEVICE 1
-#define DATA_BUF_SIZE 4ULL * 1024ULL * 1024ULL
+#define DATA_BUF_SIZE 4000ULL * 1024ULL * 1024ULL
 
 static const char ipcName[] = "memmap_ipc_pipe";
 static const char shmName[] = "memmap_ipc_shm";
@@ -346,7 +346,7 @@ static void childProcess(int devId, int id, char **argv) {
 
   // Reserve the required contiguous VA space for the allocations
   checkCudaErrors(cuMemAddressReserve(&d_ptr, procCount * DATA_BUF_SIZE,
-                                      DATA_BUF_SIZE, 0, 0));
+                                      1, 0, 0));
 
   // Import the memory allocations shared by the parent with us and map them in
   // our address space.
@@ -577,6 +577,12 @@ static void parentProcess(char *app) {
     checkIpcErrors(ipcCloseShareableHandle(shHandles[i]));
   }
 
+  for (i = 0; i < nprocesses; i++) {
+    checkCudaErrors(cuMemRelease(allocationHandles[i]));
+  }
+  checkIpcErrors(ipcCloseSocket(ipcParentHandle));
+  sharedMemoryClose(&info);
+
   // And wait for them to finish
   for (i = 0; i < processes.size(); i++) {
     if (waitProcess(&processes[i]) != EXIT_SUCCESS) {
@@ -585,12 +591,7 @@ static void parentProcess(char *app) {
     }
   }
 
-  for (i = 0; i < nprocesses; i++) {
-    checkCudaErrors(cuMemRelease(allocationHandles[i]));
-  }
 
-  checkIpcErrors(ipcCloseSocket(ipcParentHandle));
-  sharedMemoryClose(&info);
 }
 
 // Host code
